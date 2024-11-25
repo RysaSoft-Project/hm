@@ -1,0 +1,184 @@
+"use client";
+import React, { useState, useEffect } from "react";
+
+import Swal from "sweetalert2";
+import {
+  updateQuantityInPannier,
+  AddProdoctToPannier,
+  checkProductInCart,
+} from "@/app/repository/ProductsFunction/function";
+
+const getProductById = async (c) => {
+  const response = await fetch(
+    `/api/products?action=getProductById&reference=${reference}`
+  );
+  if (!response.ok) {
+    throw new Error("Erreur lors de la récupération du produit");
+  }
+  return response.json();
+};
+
+function ProductDetails({ productid, sessionId }) {
+  const [mainImage, setMainImage] = useState(
+    "https://www.lequipe.fr/_medias/img-photo-jpg/un-joueur-de-roeschwoog-a-sauve-la-vie-d-un-delegue-f-faugere-l-equipe/1500000002067011/0:0,1995:1330-828-552-75/82e5d.jpg"
+  );
+  // État pour gérer l'animation (fade-in effect)
+  const [isFading, setIsFading] = useState(false);
+
+  const thumbnails = [
+    "https://www.lequipe.fr/_medias/img-photo-jpg/un-joueur-de-roeschwoog-a-sauve-la-vie-d-un-delegue-f-faugere-l-equipe/1500000002067011/0:0,1995:1330-828-552-75/82e5d.jpg",
+    "https://gmedia.playstation.com/is/image/SIEPDC/dualsense-controller-product-thumbnail-01-en-14sep21?$facebook$",
+    "https://gmedia.playstation.com/is/image/SIEPDC/dualsense-controller-product-thumbnail-01-en-14sep21?$facebook$",
+  ];
+  const handleThumbnailClick = (image) => {
+    if (image !== mainImage) {
+      // Lancer l'animation de disparition
+      setIsFading(true);
+
+      // Attendre la fin de l'animation avant de changer l'image principale
+      setTimeout(() => {
+        setMainImage(image);
+        setIsFading(false); // Réinitialiser l'animation
+      }, 300); // Durée de l'animation (doit correspondre au CSS)
+    }
+  };
+  const handleAddToCart = async (product, sessionId) => {
+    const exists = await checkProductInCart(product, sessionId);
+
+    if (exists) {
+      await updateQuantityInPannier(product, sessionId, exists.quantity + 1);
+      Swal.fire({
+        title: "Mise à Jour!",
+        text: "Quantité de produit mise à jour dans le panier.",
+        icon: "success",
+        confirmButtonText: "OK",
+      });
+    } else {
+      await AddProdoctToPannier(product, sessionId);
+      Swal.fire({
+        title: "Ajouté!",
+        text: "Produit ajouté au panier.",
+        icon: "success",
+        confirmButtonText: "OK",
+      });
+    }
+  };
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchProduct = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getProductById(productid);
+        setProduct(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (productid) fetchProduct();
+  }, [productid]);
+
+  // Affichage en cas de chargement
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin border-t-4 border-blue-500 w-16 h-16 border-solid rounded-full"></div>
+      </div>
+    );
+  }
+
+  // Affichage en cas d'erreur
+  if (error) {
+    return (
+      <div className="text-center text-red-500">
+        <h1 className="text-xl">Erreur : {error}</h1>
+      </div>
+    );
+  }
+
+  // Affichage en cas de produit trouvé
+  if (!product) {
+    return (
+      <div className="text-center text-gray-500">
+        <h1>Produit non trouvé</h1>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8 mt-12">
+      <div className="flex flex-col md:flex-row items-center justify-center gap-8 mt-12">
+        {/* Carte produit */}
+        <div className="max-w-sm w-full border rounded-lg shadow-lg p-4">
+          {/* Image principale avec cadre de type carte */}
+          <div className="relative w-full h-80 overflow-hidden rounded-lg">
+            <img
+              src={mainImage}
+              alt={product.title}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${
+                isFading ? "opacity-0" : "opacity-100"
+              }`}
+            />
+          </div>
+          {/* Miniatures */}
+          <div className="flex justify-center gap-2 mt-6">
+            {/* Utilisation de `mt-6` pour espacement vertical */}
+            {thumbnails.map((thumb, index) => (
+              <div
+                key={index}
+                className={`w-16 h-16 overflow-hidden rounded-lg border cursor-pointer ${
+                  mainImage === thumb ? "border-blue-600" : "border-gray-300"
+                }`}
+                onClick={() => handleThumbnailClick(thumb)}
+              >
+                <img
+                  src={thumb}
+                  alt={`Thumbnail ${index + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Informations produit */}
+        <div className="w-full md:w-1/2 text-center md:text-left">
+          <h1 className="text-3xl font-semibold text-gray-800">
+            {product.title}
+          </h1>
+          <p className="text-lg text-gray-600 mt-4">{product.description}</p>
+          <div className="flex items-center justify-center md:justify-start mt-6">
+            <span className="text-2xl font-bold text-gray-900">
+              {product.price} DH
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // Empêche la propagation de l'événement
+                handleAddToCart(product, sessionId);
+              }}
+              className="ml-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            >
+              Ajouter au panier
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function Page({ params }) {
+  const { productid } = params;
+
+  return (
+    <div>
+      <ProductDetails productid={productid} />
+    </div>
+  );
+}
